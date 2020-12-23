@@ -5,6 +5,8 @@ import configparser
 import sys
 import paho.mqtt.client as mqtt
 
+# TODO: Break in to classes - separate out the mqtt stuff
+# TODO: Drop config stuff - build as constants in a constants module
 
 # Version of this software sent to the Controller
 softwareVersion = "1.0.0"
@@ -132,7 +134,7 @@ class ISGReader:
                     int(self.config[mqttSection][mqttKeepalive]))
 
             self.presentation()
-            self.mqttClient.loop_start()
+            self.mqttClient.loop(5)
 
 
     def presentation(self):
@@ -319,6 +321,7 @@ class ISGReader:
 #        print("Connected with result code "+str(rc))
 #        print(self.config[mqttSection][mqttSubscribe]+"/#")
         self.mqttClient.subscribe(self.config[mqttSection][mqttSubscribe]+"/#")
+        self.mqttClient.loop(5)
 
     # The callback for when a PUBLISH message is received from the server.
     def when_message(self, client, userdata, msg):
@@ -391,7 +394,7 @@ f_format = logging.Formatter("%(asctime)s:%(levelname)s: %(message)s")
 f_handler.setFormatter(f_format)
 logger.addHandler(f_handler)
 
-logger.info("Controller started")
+logger.info("ISG Reader started")
 
 
 ISG = ISGReader('isgmodbus.cfg')
@@ -403,42 +406,36 @@ ISG = ISGReader('isgmodbus.cfg')
 #print(ISG.registerNameValue(3515))
 #print(ISG.sensorRefresh)
 
-remainingSeconds = {}
+time_to_publish = {}
 
 for sensor in ISG.sensorList():
 
+    previous_time = time.time() - 1
+
     # This ensures every sensor is published straight away
-    remainingSeconds[sensor] = 0
+    time_to_publish[sensor] = previous_time
 
 loops = ISG.loops
 
 
+pause_time = 0
 
 while loops != 0:
+    logger.debug(f"In loop waiting for {pause_time} seconds")
 
-    pauseTime = min(remainingSeconds.values())
-#    print(pauseTime)
+    #pauseTime = min(remainingSeconds.values())
+    ISG.mqttClient.loop(pause_time)
 
-    time.sleep(pauseTime)
+    current_time = time.time()
 
     # Publish those that have reached their refresh interval
     for sensor in ISG.sensorIntervals.keys():
-        remainingSeconds[sensor] = remainingSeconds[sensor] - pauseTime
-        if remainingSeconds[sensor] <= 0:
+        if time_to_publish[sensor] <= current_time:
             ISG.publishValue(sensor)
-            remainingSeconds[sensor] = int(ISG.sensorIntervals[sensor])
+            time_to_publish[sensor] = int(ISG.sensorIntervals[sensor]) + current_time
 
-    currentTime = time.localtime()
-    for sensor in ISG.sensorPublishTimes.keys():
-        if (remainingSeconds[sensor] - pauseTime) <= 0:
-            ISG.publishValue(sensor)
-        remainingSeconds[sensor] = (datetime.strptime(ISG.sensorPublishTimes[sensor], "%H:%M:%S") -
-                datetime.strptime(str(currentTime.tm_hour)+str(currentTime.tm_min)+str(currentTime.tm_sec), "%H%M%S")).seconds
-        # Time has just happened
-        if remainingSeconds[sensor] <= 0:
-            remainingSeconds[sensor] = 86401
+    pause_time = min(time_to_publish.values()) - time.time()
 
-#    print(remainingSeconds)
     if loops > 0:
         loops -= 1
 

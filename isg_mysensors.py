@@ -50,6 +50,8 @@ registerTypes = {
         'read/write':2
         }
 
+# Note that type 2 and 7 are signed
+# Types 6 and 8 are unsigned
 readMultiplier = {
         2 : 0.1,
         6 : 1,
@@ -271,16 +273,23 @@ class ISGReader:
 
         self.refreshIfNeeded(inRegister, inRefresh)
         rawValue = self.blockRaw[int((inRegister-1)/100)][inRegister - self.blockStart[int((inRegister-1)/100)]]
-        netValue = int(rawValue) * readMultiplier[self.registerDataTypes[inRegister]]
+        # Handle sign for types 2 and 7
+        if (int(rawValue) > 32768) and \
+                (self.registerDataTypes[inRegister] == 2 or self.registerDataTypes[inRegister] == 7):
+            netValue = int(rawValue) - 65536
+        else:
+            netValue = int(rawValue)
+        netValue *= readMultiplier[self.registerDataTypes[inRegister]]
+
         #logger.debug(f"register {inRegister} rawvalue {rawValue} netvalue {netValue} readmultiplier {readMultiplier[self.registerDataTypes[inRegister]]} datatype {self.registerDataTypes[inRegister]}")
 
         if inType == 'long':
             netValue = netValue + self.blockRaw[int((inRegister-1)/100)][inRegister - self.blockStart[int((inRegister-1)/100)]+1] * 1000
 
         if readMultiplier[self.registerDataTypes[inRegister]] == 1:
-            self.registerValues[inRegister] =  int(netValue)
+            self.registerValues[inRegister] = int(netValue)
         else:
-            self.registerValues[inRegister] =  round(netValue,2)
+            self.registerValues[inRegister] = round(netValue,2)
 
             return
 
@@ -428,13 +437,21 @@ while loops != 0:
 
     current_time = time.time()
 
-    # Publish those that have reached their refresh interval
-    for sensor in ISG.sensorIntervals.keys():
-        if time_to_publish[sensor] <= current_time:
-            ISG.publishValue(sensor)
-            time_to_publish[sensor] = int(ISG.sensorIntervals[sensor]) + current_time
+    # This loop should ensure that pick up anything that falls into publish time
+    # while we are busy publishing other sensors
+    while min(time_to_publish.values()) <= current_time:
+        logger.debug(f"In loop current_time =  {current_time}")
 
-    pause_time = min(time_to_publish.values()) - time.time()
+        # Publish those that have reached their refresh interval
+        for sensor in ISG.sensorIntervals.keys():
+            if time_to_publish[sensor] <= current_time:
+                ISG.publishValue(sensor)
+                time_to_publish[sensor] = int(ISG.sensorIntervals[sensor]) + current_time
+        current_time = time.time()
+
+    logger.debug(f"loop time_to_publish {time_to_publish}")
+    # This is failsafe in case we go negative - which causes loop to block
+    pause_time = max(min(time_to_publish.values()) - time.time(), 0)
 
     if loops > 0:
         loops -= 1

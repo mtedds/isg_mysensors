@@ -33,6 +33,10 @@ class ISGReader:
             self.mqtt_client = ISGmqtt(self.config.mqtt_section(), self.config.mysensors_section(), self.when_message,
                                        self.config.sensorTypes, self.config.sensorNames, logger)
 
+        # Read the HC and DHW programmes from the ISG and send them to the controller in a special message
+        self.mqtt_client.send_control_message("HC", COMMAND_SET, self.http_reader.refresh_raw_values(1))
+        self.mqtt_client.send_control_message("DHW", COMMAND_SET, self.http_reader.refresh_raw_values(2))
+
     def close_client(self):
         logger.debug(f"ISGReader close_client")
         self.modbus_client.run_close()
@@ -40,9 +44,7 @@ class ISGReader:
 
     def sensor_value(self, in_sensor):
         logger.debug(f"ISGReader sensor_value {in_sensor}")
-        #        print("sensorValue " + str(inSensor))
-        #        print(self.sensorRefresh[inSensor])
-        #        print(self.sensorRealTypes)
+
         if self.config.sensorRegisters[in_sensor][0:3] == "val":
             reg_value = self.http_reader.register_value(self.config.sensorRegisters[in_sensor],
                                                         self.config.sensorRefresh[in_sensor],
@@ -58,37 +60,31 @@ class ISGReader:
         else:
             return reg_value
 
-    # I have just broken this by replacing the register index by the sensor index!
-#    def registerName(self, inRegister):
-#        logger.debug(f"ISGReader registerName {inRegister}")
-#        return self.registerNames[inRegister]
-
-# I have just broken this by replacing the register index by the sensor index!
-#    def registerNameValue(self, inRegister):
-#        logger.debug(f"ISGReader registerNameValue {inRegister}")
-#        return {'name': self.registerName(inRegister), 'value': self.registerValue(inRegister)}
-
-#    def sensorList(self):
-#        logger.debug(f"ISGReader sensorList")
-#        return self.sensorNames.keys()
-
     # The callback for when a PUBLISH message is received from the server.
     def when_message(self, msg_node_id, msg_sensor_id, msg_command, msg_type, payload):
         logger.debug(f"ISGReader when_message {msg_node_id} {msg_sensor_id} {msg_command} {msg_type} {payload}")
 
+        # Process discover from Controller
         if ((msg_node_id == "255") and
            (msg_command == COMMAND_INTERNAL) and
            (msg_type == I_DISCOVER_REQUEST)):
             self.mqtt_client.discover_response()
 
+        # Process presentation request from Controller
         elif ((msg_node_id == self.config.node_id) and
               (msg_command == COMMAND_INTERNAL) and
               (msg_type == I_PRESENTATION)):
             self.mqtt_client.presentation(self.config.sensorTypes, self.config.sensorNames)
 
+        # Process set sensor value
         elif ((msg_node_id == self.config.node_id) and
               (msg_command == COMMAND_SET)):
-            self.set_sensor_value(int(msg_sensor_id), payload)
+            self.set_sensor_value(msg_sensor_id, payload)
+
+        # Process request sensor value
+        elif ((msg_node_id == self.config.node_id) and
+              (msg_command == COMMAND_REQ)):
+            self.publishValue(int(msg_sensor_id))
 
     def publishValue(self, in_sensor):
         logger.debug(f"ISGReader publishValue {in_sensor}")
@@ -100,14 +96,19 @@ class ISGReader:
     def set_sensor_value(self, in_sensor_id, in_value):
         logger.debug(f"ISGReader set_sensor_value {in_sensor_id} {in_value}")
 
-        register = self.config.sensorRegisters[in_sensor_id]
-        if self.config.registerTypes[in_sensor_id] != "read/write":
-            logger.warning(f"Tried to write to non-writeable register {register} - sensor ID {in_sensor_id}")
-            return 1
+        if in_sensor_id[0:3] == "val":
+            self.http_reader.write_register(in_sensor_id, in_value)
 
-        self.modbus_client.write_register(in_sensor_id, register, self.config.registerDataTypes[in_sensor_id], in_value)
+        else:
+            sensor_id = int(in_sensor_id)
+            register = self.config.sensorRegisters[sensor_id]
+            if self.config.registerTypes[sensor_id] != "read/write":
+                logger.warning(f"Tried to write to non-writeable register {register} - sensor ID {sensor_id}")
+                return 1
 
-        self.publishValue(in_sensor_id)
+            self.modbus_client.write_register(sensor_id, register, self.config.registerDataTypes[sensor_id], in_value)
+
+            self.publishValue(sensor_id)
 
 
 logger = logging.getLogger(__name__)

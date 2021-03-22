@@ -84,6 +84,8 @@ class ISGConfig:
                     self.registerBit[sensor] = int(self.config[section][registerBit])
                 elif register_interval in self.config[section]:
                     self.sensorRealTypes[sensor] = 'interval'
+                elif register_idle in self.config[section]:
+                    self.sensorRealTypes[sensor] = 'idle'
 
         if debugSection in self.config.sections():
             if debugLoops in self.config[debugSection]:

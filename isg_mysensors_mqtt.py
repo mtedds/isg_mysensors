@@ -2,6 +2,7 @@
 # This is the MQTT communication module for the ISG daemon
 # Deals with MQTT subscribe / publish / messages / etc
 
+import json
 import paho.mqtt.client as mqtt
 from isg_mysensors_constants import *
 
@@ -48,14 +49,15 @@ class ISGmqtt:
     # The callback for when a PUBLISH message is received from the server.
     def when_message(self, client, userdata, msg):
         self.logger.debug(f"ISGmqtt when_message {client} {userdata} {msg}")
-        print(msg.topic + " " + str(msg.payload))
+        payload = str(msg.payload.decode("UTF-8"))
+        print(msg.topic + " " + payload)
         msg_split = msg.topic.split("/")
         msg_node_id = msg_split[1]
         msg_sensor_id = msg_split[2]
         msg_command = msg_split[3]
         msg_type = msg_split[5]
 
-        self.call_when_message(msg_node_id, msg_sensor_id, msg_command, msg_type, msg.payload)
+        self.call_when_message(msg_node_id, msg_sensor_id, msg_command, msg_type, payload)
 
     def run_loop(self, in_seconds):
         self.logger.debug(f"ISGmqtt run_loop {in_seconds}")
@@ -89,9 +91,16 @@ class ISGmqtt:
                                  COMMAND_INTERNAL + "/0/" + I_DISCOVER_RESPONSE, self.node_id)
 
     def publish_value(self, in_sensor, in_variable_type, in_sensor_value):
-        self.logger.debug(f"ISGmqtt discover_response {in_sensor} {in_variable_type} {in_sensor_value}")
+        self.logger.debug(f"ISGmqtt publish_value {in_sensor} {in_variable_type} {in_sensor_value}")
         self.mqtt_client.publish(self.publish_topic + self.node_id + "/" + str(in_sensor) + "/1/0/" + in_variable_type,
                                  in_sensor_value)
+
+    def send_control_message(self, in_pseudo_sensor, in_command, in_payload):
+        self.logger.debug(f"ISGmqtt send_control_message {in_pseudo_sensor} {in_command} {in_payload}")
+
+        # 48 is V_CUSTOM - only used for this message
+        self.mqtt_client.publish(f"{self.publish_topic}{self.node_id}/{in_pseudo_sensor}/{in_command}/0/48",
+                                 json.dumps(in_payload))
 
     def run_stop(self):
         self.logger.debug(f"ISGmqtt run_stop")

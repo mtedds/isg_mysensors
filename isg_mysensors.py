@@ -113,7 +113,7 @@ class ISGReader:
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-f_handler = logging.FileHandler("/var/log/isgmysensors.log")
+f_handler = logging.FileHandler("/var/log/isg_mysensors/isgmysensors.log")
 f_handler.setLevel(logging.DEBUG)
 f_format = logging.Formatter("%(asctime)s:%(levelname)s: %(message)s")
 f_handler.setFormatter(f_format)

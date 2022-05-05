@@ -17,7 +17,8 @@ class modbus:
             self.modbus_client = ModbusClient(in_host, int(in_port))
             self.modbus_client.connect()
         except:
-            print(sys.exc_info()[0])
+            in_logger.critical("Failed to connect to ISG")
+            in_logger.critical(sys.exc_info()[0])
             raise
 
         self.block_raw = {}

@@ -101,7 +101,7 @@ class ISGReader:
 
         else:
             sensor_id = int(in_sensor_id)
-            register = self.config.sensorRegisters[sensor_id]
+            register = int(self.config.sensorRegisters[sensor_id])
             if self.config.registerTypes[sensor_id] != "read/write":
                 logger.warning(f"Tried to write to non-writeable register {register} - sensor ID {sensor_id}")
                 return 1
@@ -112,9 +112,9 @@ class ISGReader:
 
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 f_handler = logging.FileHandler("/var/log/isg_mysensors/isgmysensors.log")
-f_handler.setLevel(logging.DEBUG)
+f_handler.setLevel(logging.INFO)
 f_format = logging.Formatter("%(asctime)s:%(levelname)s: %(message)s")
 f_handler.setFormatter(f_format)
 logger.addHandler(f_handler)

@@ -110,7 +110,7 @@ class modbus:
     def write_register(self, in_sensor_id, in_register, in_reg_data_type, in_value):
         self.logger.debug(f"modbus write_register {in_sensor_id} {in_register} {in_reg_data_type} {in_value}")
 
-        raw_value = int(int(in_value) / readMultiplier[in_reg_data_type])
+        raw_value = int(float(in_value) / float(readMultiplier[in_reg_data_type]))
 
         self.modbus_client.write_single_register(in_register - 1, raw_value)
 

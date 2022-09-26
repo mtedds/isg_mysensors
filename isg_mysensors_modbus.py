@@ -60,13 +60,19 @@ class modbus:
     def refresh_raw_values(self, in_block):
         self.logger.debug(f"modbus refresh_raw_values {in_block}")
         # 1500s are read / write holding registers
-        if in_block == 15:
-            self.block_raw[in_block] = self.modbus_client.read_holdingregisters(
-                                        self.block_start[in_block]-1, self.block_length[in_block])
-        else:
-            self.block_raw[in_block] = self.modbus_client.read_inputregisters(
-                                        self.block_start[in_block]-1, self.block_length[in_block])
-        self.refresh_datetime[in_block] = datetime.now()
+        try:
+            if in_block == 15:
+                self.block_raw[in_block] = self.modbus_client.read_holdingregisters(
+                                            self.block_start[in_block]-1, self.block_length[in_block])
+            else:
+                self.block_raw[in_block] = self.modbus_client.read_inputregisters(
+                                            self.block_start[in_block]-1, self.block_length[in_block])
+
+            self.refresh_datetime[in_block] = datetime.now()
+
+        except Exception:
+            self.logger.error(f"modbus refresh_raw_values failed to read - probably a timeout")
+            pass
 
     # Only refresh the raw data if the register raw data is stale
     def refresh_if_needed(self, in_register, in_refresh):

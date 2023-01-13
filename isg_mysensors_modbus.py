@@ -76,10 +76,6 @@ class modbus:
             self.refresh_datetime[in_block] = datetime.now()
             raise
 
-        except Exception:
-            self.logger.error(f"modbus refresh_raw_values failed to read - probably a timeout")
-            pass
-
     # Only refresh the raw data if the register raw data is stale
     def refresh_if_needed(self, in_register, in_refresh):
         self.logger.debug(f"modbus refresh_if_needed {in_register} {in_refresh}")

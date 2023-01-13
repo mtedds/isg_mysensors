@@ -66,6 +66,8 @@ class ISGmqtt:
     def presentation(self, in_sensor_types, in_sensor_names):
         self.logger.debug(f"ISGmqtt presentation {in_sensor_types} {in_sensor_names}")
         # Announce the Gateway as a repeater node
+        #            self.mqttClient.publish("ISG/0/255/0/0/17", "2.3.2")
+        self.mqtt_client.publish(self.publish_topic + self.node_id + "/255/0/0/17", "2.3.2")
         #            self.mqttClient.publish("ISG/0/255/0/0/18", "1.2.3")
         self.mqtt_client.publish(self.publish_topic + self.node_id + "/255/0/0/18", softwareVersion)
 

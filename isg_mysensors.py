@@ -29,6 +29,8 @@ class ISGReader:
 
         self.http_reader = http(self.config.modbus_host, logger)
 
+        self.last_values = {}
+
         if self.config.mqtt:
             self.mqtt_client = ISGmqtt(self.config.mqtt_section(), self.config.mysensors_section(), self.when_message,
                                        self.config.sensorTypes, self.config.sensorNames, logger)
@@ -42,6 +44,7 @@ class ISGReader:
         self.modbus_client.run_close()
         self.mqtt_client.run_stop()
 
+    # Fetches the value for the sensor
     def sensor_value(self, in_sensor):
         logger.debug(f"ISGReader sensor_value {in_sensor}")
 
@@ -84,14 +87,22 @@ class ISGReader:
         # Process request sensor value
         elif ((msg_node_id == self.config.node_id) and
               (msg_command == COMMAND_REQ)):
-            self.publishValue(int(msg_sensor_id))
+            self.publish_value(int(msg_sensor_id))
 
-    def publishValue(self, in_sensor):
-        logger.debug(f"ISGReader publishValue {in_sensor}")
+    # Publish the value of a sensor if it is different from the last value published
+    def publish_value(self, in_sensor):
+        logger.debug(f"ISGReader publish_value {in_sensor}")
+
+        new_value = self.sensor_value(in_sensor)
+
+        if in_sensor in self.last_values and new_value == self.last_values[in_sensor]:
+            return
+
+        self.last_values[in_sensor] = new_value
         if self.config.mqtt:
             self.mqtt_client.publish_value(str(in_sensor),
                                            self.config.variableTypes[in_sensor],
-                                           self.sensor_value(in_sensor))
+                                           new_value)
 
     def set_sensor_value(self, in_sensor_id, in_value):
         logger.debug(f"ISGReader set_sensor_value {in_sensor_id} {in_value}")
@@ -101,20 +112,20 @@ class ISGReader:
 
         else:
             sensor_id = int(in_sensor_id)
-            register = self.config.sensorRegisters[sensor_id]
+            register = int(self.config.sensorRegisters[sensor_id])
             if self.config.registerTypes[sensor_id] != "read/write":
                 logger.warning(f"Tried to write to non-writeable register {register} - sensor ID {sensor_id}")
                 return 1
 
             self.modbus_client.write_register(sensor_id, register, self.config.registerDataTypes[sensor_id], in_value)
 
-            self.publishValue(sensor_id)
+            self.publish_value(sensor_id)
 
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 f_handler = logging.FileHandler("/var/log/isg_mysensors/isgmysensors.log")
-f_handler.setLevel(logging.DEBUG)
+f_handler.setLevel(logging.INFO)
 f_format = logging.Formatter("%(asctime)s:%(levelname)s: %(message)s")
 f_handler.setFormatter(f_format)
 logger.addHandler(f_handler)
@@ -160,7 +171,7 @@ while loops != 0:
         # Publish those that have reached their refresh interval
         for sensor in ISG.config.sensorIntervals.keys():
             if time_to_publish[sensor] <= current_time:
-                ISG.publishValue(sensor)
+                ISG.publish_value(sensor)
                 time_to_publish[sensor] = int(ISG.config.sensorIntervals[sensor]) + current_time
         current_time = time.time()
 

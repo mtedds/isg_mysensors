@@ -17,7 +17,8 @@ class modbus:
             self.modbus_client = ModbusClient(in_host, int(in_port))
             self.modbus_client.connect()
         except:
-            print(sys.exc_info()[0])
+            in_logger.critical("Failed to connect to ISG")
+            in_logger.critical(sys.exc_info()[0])
             raise
 
         self.block_raw = {}
@@ -59,13 +60,21 @@ class modbus:
     def refresh_raw_values(self, in_block):
         self.logger.debug(f"modbus refresh_raw_values {in_block}")
         # 1500s are read / write holding registers
-        if in_block == 15:
-            self.block_raw[in_block] = self.modbus_client.read_holdingregisters(
-                                        self.block_start[in_block]-1, self.block_length[in_block])
-        else:
-            self.block_raw[in_block] = self.modbus_client.read_inputregisters(
-                                        self.block_start[in_block]-1, self.block_length[in_block])
-        self.refresh_datetime[in_block] = datetime.now()
+        try:
+            if in_block == 15:
+                self.block_raw[in_block] = self.modbus_client.read_holdingregisters(
+                                            self.block_start[in_block]-1, self.block_length[in_block])
+            else:
+                self.block_raw[in_block] = self.modbus_client.read_inputregisters(
+                                            self.block_start[in_block]-1, self.block_length[in_block])
+
+            self.refresh_datetime[in_block] = datetime.now()
+
+        except Exception:
+            self.logger.error(f"modbus refresh_raw_values failed to read - probably a timeout")
+            # This adds a little delay before the next read - it might help!!!
+            self.refresh_datetime[in_block] = datetime.now()
+            raise
 
     # Only refresh the raw data if the register raw data is stale
     def refresh_if_needed(self, in_register, in_refresh):
@@ -109,7 +118,7 @@ class modbus:
     def write_register(self, in_sensor_id, in_register, in_reg_data_type, in_value):
         self.logger.debug(f"modbus write_register {in_sensor_id} {in_register} {in_reg_data_type} {in_value}")
 
-        raw_value = int(int(in_value) / readMultiplier[in_reg_data_type])
+        raw_value = int(float(in_value) / float(readMultiplier[in_reg_data_type]))
 
         self.modbus_client.write_single_register(in_register - 1, raw_value)
 

@@ -5,6 +5,7 @@ from easymodbus.modbusClient import ModbusClient
 from datetime import datetime, timedelta
 import sys
 from isg_mysensors_constants import *
+import time
 
 
 class modbus:
@@ -60,21 +61,30 @@ class modbus:
     def refresh_raw_values(self, in_block):
         self.logger.debug(f"modbus refresh_raw_values {in_block}")
         # 1500s are read / write holding registers
-        try:
-            if in_block == 15:
+        if in_block == 15:
+            try:
                 self.block_raw[in_block] = self.modbus_client.read_holdingregisters(
                                             self.block_start[in_block]-1, self.block_length[in_block])
-            else:
+            except Exception:
+                self.logger.error(f"modbus refresh_raw_values failed to read - probably a timeout")
+                # This adds a little delay before the next read - it might help!!!
+                time.sleep(30.0)
+                # self.refresh_datetime[in_block] = datetime.now()
+                # raise
+        else:
+            try:
                 self.block_raw[in_block] = self.modbus_client.read_inputregisters(
                                             self.block_start[in_block]-1, self.block_length[in_block])
+            except Exception:
+                self.logger.error(f"modbus refresh_raw_values failed to read - probably a timeout")
+                # This adds a little delay before the next read - it might help!!!
+                time.sleep(30.0)
+                # self.refresh_datetime[in_block] = datetime.now()
+                # raise
 
-            self.refresh_datetime[in_block] = datetime.now()
+        self.refresh_datetime[in_block] = datetime.now()
 
-        except Exception:
-            self.logger.error(f"modbus refresh_raw_values failed to read - probably a timeout")
-            # This adds a little delay before the next read - it might help!!!
-            self.refresh_datetime[in_block] = datetime.now()
-            raise
+        return
 
     # Only refresh the raw data if the register raw data is stale
     def refresh_if_needed(self, in_register, in_refresh):

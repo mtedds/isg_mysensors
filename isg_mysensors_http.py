@@ -68,7 +68,13 @@ class http:
     def refresh_raw_values(self, in_block):
         self.logger.debug(f"http refresh_raw_values {in_block}")
 
-        page = requests.get(f"http://{self.host}/{self.block_page[in_block]}")
+        request = f"http://{self.host}/{self.block_page[in_block]}"
+
+        page = requests.get(request, timeout=10)
+
+        while page.status_code != 200:
+            self.logger.error(f"http refresh_raw_values - http get failed: {request} {page.status_code} {page.reason}")
+            page = requests.get(request, timeout=60)
 
         start_val = self.block_start[in_block]
 

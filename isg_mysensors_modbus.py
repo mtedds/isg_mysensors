@@ -12,6 +12,8 @@ class modbus:
     def __init__(self, in_host, in_port, in_logger):
         in_logger.debug(f"modbus __init__ {in_host}, {in_port}")
 
+        self.host = in_host
+        self.port = in_port
         self.logger = in_logger
 
         try:
@@ -67,24 +69,38 @@ class modbus:
                                             self.block_start[in_block]-1, self.block_length[in_block])
             except Exception:
                 self.logger.error(f"modbus refresh_raw_values failed to read - probably a timeout")
-                # This adds a little delay before the next read - it might help!!!
-                time.sleep(30.0)
-                # self.refresh_datetime[in_block] = datetime.now()
-                # raise
+                self.reconnect()
+                self.refresh_raw_values(in_block)
         else:
             try:
                 self.block_raw[in_block] = self.modbus_client.read_inputregisters(
                                             self.block_start[in_block]-1, self.block_length[in_block])
             except Exception:
                 self.logger.error(f"modbus refresh_raw_values failed to read - probably a timeout")
-                # This adds a little delay before the next read - it might help!!!
-                time.sleep(30.0)
-                # self.refresh_datetime[in_block] = datetime.now()
-                # raise
+                self.reconnect()
+                self.refresh_raw_values(in_block)
 
         self.refresh_datetime[in_block] = datetime.now()
 
         return
+
+    def reconnect(self):
+        self.logger.debug(f"modbus reconnect")
+
+        connected = 0
+
+        while connected == 0:
+            time.sleep(30.0)
+            self.logger.info(f"Attempting to reconnect to ISG")
+            try:
+                self.modbus_client = ModbusClient(self.host, int(self.port))
+                self.modbus_client.connect()
+                connected = 1
+            except:
+                self.logger.error("Failed to connect to ISG")
+                self.logger.error(sys.exc_info()[0])
+
+        self.logger.info(f"Reconnected to ISG")
 
     # Only refresh the raw data if the register raw data is stale
     def refresh_if_needed(self, in_register, in_refresh):

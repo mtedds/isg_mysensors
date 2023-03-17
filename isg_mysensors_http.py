@@ -189,7 +189,7 @@ class http:
         register = int(in_sensor_val[3:])
         block = -1
         for index in self.block_start.keys():
-            if register >= self.block_start[index] and register < self.block_start[index] + self.block_length[index]:
+            if self.block_start[index] <= register < self.block_start[index] + self.block_length[index]:
                 block = index
 
         if block > -1:
